@@ -125,6 +125,7 @@ static int _syscfg_add_default_entry(const char *key, const char *value) {
     strncpy(new_node->entry.value, value, MAX_NAME_LEN - 1);
     new_node->entry.value[MAX_NAME_LEN - 1] = '\0';
     new_node->next = default_ht[index];
+    printf("NAME:%s - VALUE:%s\n", new_node->entry.key, new_node->entry.value);
     default_ht[index] = new_node;
 
     return 0;
@@ -133,7 +134,7 @@ static int _syscfg_add_default_entry(const char *key, const char *value) {
 
 static int _syscfg_getall_defaults(void)
 {
-    printf("%s, %d\n", __FUNC__,__LINE__);
+    printf("%s, %d\n", __FUNCTION__,__LINE__);
     FILE *fp = fopen(DEFAULT_FILE, "r");
     if (!fp) {
         ulog_LOG_Err("[utopia] no system default file (%s) found\n", DEFAULT_FILE);
@@ -153,19 +154,19 @@ static int _syscfg_getall_defaults(void)
             }
         }
     }
-    printf("%s, %d\n", __FUNC__,__LINE__);
+    printf("%s, %d\n", __FUNCTION__,__LINE__);
 
     fclose(fp);
-    for (int i =0; i < ; i++)
+    for (int i =0; i < SYSCFG_HASH_TABLE_SZ; i++)
     {
         ConfigNode *new_node = default_ht[i];
 
-        if ( new_node )
+        if (new_node)
         {
             printf ("Default [%s]\n", new_node->entry.key);
         }
     }
-    printf("%s, %d\n", __FUNC__,__LINE__);
+    printf("%s, %d\n", __FUNCTION__,__LINE__);
 
     return 0;
 }
