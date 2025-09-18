@@ -1310,6 +1310,7 @@ static size_t _syscfg_getall2 (char *buf, size_t bufsz, int nolock)
 
 static int _syscfg_find (const char *name)
 {
+#if 0
     unsigned int index = hash(name);
     if (index)
     {
@@ -1320,7 +1321,14 @@ static int _syscfg_find (const char *name)
             return 1;
         }
     }
-
+#endif
+    ConfigNode *node = head_node;
+    while (node) {
+        if (strcmp(node->entry.key, name) == 0)
+            return 1;
+        node = node->next;
+    }
+ 
     return 0;
 }
 
