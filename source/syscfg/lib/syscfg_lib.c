@@ -111,7 +111,10 @@ typedef struct ConfigNode {
     struct ConfigNode *next;
 } ConfigNode;
 
-ConfigNode *default_ht[SYSCFG_HASH_TABLE_SZ] = {0};
+//#define DEFAULT_SYSCFG_HASH_TABLE_SZ
+//ConfigNode *default_ht[DEFAULT_SYSCFG_HASH_TABLE_SZ] = {0};
+ConfigNode **default_ht = NULL;
+ConfigNode *head_node = NULL;
 static int _syscfg_add_default_entry(const char *key, const char *value) {
     unsigned int index = hash(key);
     ConfigNode *new_node = malloc(sizeof(ConfigNode));
@@ -124,17 +127,18 @@ static int _syscfg_add_default_entry(const char *key, const char *value) {
     new_node->entry.key[MAX_NAME_LEN - 1] = '\0';
     strncpy(new_node->entry.value, value, MAX_NAME_LEN - 1);
     new_node->entry.value[MAX_NAME_LEN - 1] = '\0';
-    new_node->next = default_ht[index];
-    printf("NAME:%s - VALUE:%s\n", new_node->entry.key, new_node->entry.value);
-    default_ht[index] = new_node;
-
+    if (head_node)
+    {
+        new_node->next = head_node;
+    }
+    head_node = new_node;
+    syscfg_default_count++;
     return 0;
 }
 
 
 static int _syscfg_getall_defaults(void)
 {
-    printf("%s, %d\n", __FUNCTION__,__LINE__);
     FILE *fp = fopen(DEFAULT_FILE, "r");
     if (!fp) {
         ulog_LOG_Err("[utopia] no system default file (%s) found\n", DEFAULT_FILE);
@@ -154,10 +158,23 @@ static int _syscfg_getall_defaults(void)
             }
         }
     }
-    printf("%s, %d\n", __FUNCTION__,__LINE__);
 
     fclose(fp);
-    for (int i =0; i < SYSCFG_HASH_TABLE_SZ; i++)
+    
+    default_ht = calloc(syscfg_default_count, sizeof(ConfigNode *));
+    if (!default_ht) {
+        ulog_LOG_Err("Failed to allocate memory for default_ht");
+        return ERR_MEM_ALLOC;
+    }
+
+    ConfigNode *node = head_node;
+    while (node) {
+        int index = hash(new_node->entry.key);
+        default_ht[index] = node;
+        node = node->next;
+    }
+
+    for (int i =0; i < syscfg_default_count; i++)
     {
         ConfigNode *new_node = default_ht[i];
 
@@ -166,7 +183,6 @@ static int _syscfg_getall_defaults(void)
             printf ("Default [%s]\n", new_node->entry.key);
         }
     }
-    printf("%s, %d\n", __FUNCTION__,__LINE__);
 
     return 0;
 }
@@ -1293,132 +1309,6 @@ static size_t _syscfg_getall2 (char *buf, size_t bufsz, int nolock)
     return (bufsz - len);   /* size does not include final nul terminator */
 }
 
-#if 0
-static int _syscfg_find (const char *name)
-{
-    int i = 0;
-	if (NULL == syscfg_default_entries)
-    {
-        printf("no system_default_entries found \n");
-        return 0;
-    }
-    for (i = 0; i < syscfg_default_count; i++)
-    {
-       if (strcmp(syscfg_default_entries[i].key, name) == 0)
-       {
-	       return 1;
-       }
-    }
-    return 0;
-}
-
-int _syscfg_default_validation()
-{
-    int i = 0;
-	if (NULL == syscfg_default_entries)
-    {
-        printf("no system_default_entries found \n");
-        return 0;
-    }
-    syscfg_shm_ctx *ctx = syscfg_ctx;
-    rw_lock(ctx);
-    shmoff_t entry;
-    for (i = 0; i < SYSCFG_HASH_TABLE_SZ; i++)
-	{
-        entry = ctx->ht[i];
-        while (entry)
-		{
-            if(0 == _syscfg_find(HT_ENTRY_NAME(ctx,entry)))
-			{
-			    printf("\t [%s] not found in default_entries\n", HT_ENTRY_NAME(ctx,entry));
-			}
-            entry = HT_ENTRY_NEXT(ctx, entry);
-        }
-    }
-	rw_unlock(ctx);
-	return 0;
-}
-#endif
-#if 0
-static unsigned int _syscfg_get_max_key_len()
- {
-     int i;
-     unsigned int max_key_len = 0;
-     syscfg_shm_ctx *ctx = syscfg_ctx;
-     shmoff_t entry;
-      for (i = 0; i < SYSCFG_HASH_TABLE_SZ; i++) {
-         entry = ctx->ht[i];
-         while (entry && max_key_len < (HT_ENTRY_NAMESZ(ctx,entry))) {
-             max_key_len = HT_ENTRY_NAMESZ(ctx,entry);
-             entry = HT_ENTRY_NEXT(ctx,entry);
-         }
-     }
-    return max_key_len;   /* size does not include final null terminator */
- }
-
-static unsigned int _syscfg_get_max_key_len()
-{
-    syscfg_shm_ctx *ctx = syscfg_ctx;
-    unsigned int max_key_len = 0;
-
-    for (int i = 0; i < SYSCFG_HASH_TABLE_SZ; i++) {
-        for (shmoff_t entry = ctx->ht[i]; entry; entry = HT_ENTRY_NEXT(ctx, entry)) {
-            unsigned int len = HT_ENTRY_NAMESZ(ctx, entry);
-            if (len > max_key_len) {
-                max_key_len = len;
-            }
-        }
-    }
-
-    return max_key_len; // size does not include final null terminator
-}
-
-void find_corrupted_strings(unsigned int max_key_len)
-{
-    syscfg_shm_ctx *ctx = syscfg_ctx;
-    rw_lock(ctx);
-    int i =0, j =0;
-    for (i = 0; i < SYSCFG_HASH_TABLE_SZ; i++)
-    {
-        for (shmoff_t entry = ctx->ht[i]; entry; entry = HT_ENTRY_NEXT(ctx, entry))
-        {
-            const char *query = HT_ENTRY_NAME(ctx, entry);
-            unsigned int max_len = 0;
-            const char *longest_super = NULL;
-            for (j = 0; j < SYSCFG_HASH_TABLE_SZ; j++)
-            {
-                for (shmoff_t temp_entry = ctx->ht[j]; temp_entry; temp_entry = HT_ENTRY_NEXT(ctx, temp_entry))
-                {
-                    if (temp_entry == entry)
-                    {
-                        continue;
-                    }
-                    const char *key_name = HT_ENTRY_NAME(ctx, temp_entry);
-                    if (strstr(key_name, query))
-                    {
-                        unsigned int len = HT_ENTRY_NAMESZ(ctx, temp_entry);
-                        if (len > max_len)
-                        {
-                            max_len = len;
-                            longest_super = key_name;
-                            if (max_len == max_key_len)
-                            {
-                                goto found;
-                            }
-                        }
-                    }
-                }
-            }
-found:
-            if (longest_super) {
-                printf("\t [%s] May be a corrupted key of [%s]\n", query, longest_super);
-            }
-        }
-    }
-    rw_unlock(ctx);
-}
-#endif
-
 static int _syscfg_find (const char *name)
 {
     unsigned int index = hash(name);
@@ -1491,6 +1381,17 @@ void find_corrupted_strings()
     }
 
     free(keys);
+
+    ConfigNode *node = head_node;
+    while (node) {
+        ConfigNode *temp = node;
+        node = node->next;
+        free(temp);
+    }
+    free(default_ht);
+    default_ht = NULL;
+    head_node = NULL;
+
     rw_unlock(ctx);
 }
 
