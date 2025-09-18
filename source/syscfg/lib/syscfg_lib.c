@@ -168,7 +168,7 @@ static int _syscfg_getall_defaults(void)
 
     ConfigNode *node = head_node;
     while (node) {
-        int index = hash(new_node->entry.key);
+        int index = hash(node->entry.key);
         default_ht[index] = node;
         node = node->next;
     }
