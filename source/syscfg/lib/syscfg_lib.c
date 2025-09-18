@@ -116,7 +116,6 @@ typedef struct ConfigNode {
 ConfigNode **default_ht = NULL;
 ConfigNode *head_node = NULL;
 static int _syscfg_add_default_entry(const char *key, const char *value) {
-    unsigned int index = hash(key);
     ConfigNode *new_node = malloc(sizeof(ConfigNode));
     if (!new_node) {
         ulog_LOG_Err("Memory allocation failed");
