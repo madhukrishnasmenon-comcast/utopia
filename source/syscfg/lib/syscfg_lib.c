@@ -113,7 +113,7 @@ typedef struct ConfigNode {
 
 //#define DEFAULT_SYSCFG_HASH_TABLE_SZ
 //ConfigNode *default_ht[DEFAULT_SYSCFG_HASH_TABLE_SZ] = {0};
-ConfigNode **default_ht = NULL;
+//ConfigNode **default_ht = NULL;
 ConfigNode *head_node = NULL;
 static int _syscfg_add_default_entry(const char *key, const char *value) {
     ConfigNode *new_node = malloc(sizeof(ConfigNode));
@@ -159,7 +159,7 @@ static int _syscfg_getall_defaults(void)
     }
 
     fclose(fp);
-    
+#if 0 
     default_ht = calloc(syscfg_default_count, sizeof(ConfigNode *));
     if (!default_ht) {
         ulog_LOG_Err("Failed to allocate memory for default_ht");
@@ -182,7 +182,7 @@ static int _syscfg_getall_defaults(void)
             printf ("Default [%s]\n", new_node->entry.key);
         }
     }
-
+#endif
     return 0;
 }
 /******************************************************************************
@@ -1397,16 +1397,19 @@ void find_corrupted_strings()
         }
     }
 
-    free(keys);
-
+    //free(keys);
+    if (munmap(large_array, array_size) == -1) {
+        perror("munmap failed");
+    }
     ConfigNode *node = head_node;
     while (node) {
         ConfigNode *temp = node;
         node = node->next;
         free(temp);
     }
-    free(default_ht);
-    default_ht = NULL;
+
+    //free(default_ht);
+    //default_ht = NULL;
     head_node = NULL;
 
     rw_unlock(ctx);
