@@ -158,7 +158,7 @@ static int _syscfg_getall_defaults(void)
             char *name, *value;
             if (parse_line(line + offset, &name, &value) == 0) {
                // _syscfg_add_default_entry(trim(name), trim(value));
-                cJSON_AddStringToObject(root, trim(name), trim(value))
+                cJSON_AddStringToObject(root, trim(name), trim(value));
             } else {
                 ulog_LOG_Err("[utopia] [error] set_syscfg_defaults failed to parse line (%s)\n", line);
             }
@@ -1399,7 +1399,7 @@ void find_corrupted_strings()
         }
 
         if (longest_super) {
-            cJSON *item = cJSON_GetObjectItemCaseSensitive(json, query);
+            cJSON *item = cJSON_GetObjectItemCaseSensitive(root, query);
             //if (!_syscfg_find(query))
             if (item == NULL)
                 printf("[utopia] - [%s] May be a corrupted key of [%s]\n", query, longest_super);
@@ -1410,7 +1410,7 @@ void find_corrupted_strings()
     if (munmap(keys, array_size) == -1) {
         perror("munmap failed");
     }
-    cJSON_Delete(json);
+    cJSON_Delete(root);
 #if 0
     ConfigNode *node = head_node;
     while (node) {
