@@ -1344,7 +1344,8 @@ void find_corrupted_strings()
     syscfg_shm_ctx *ctx = syscfg_ctx;
     rw_lock(ctx);
 
-    KeyEntry *keys = malloc(SYSCFG_HASH_TABLE_SZ * 2048 * sizeof(KeyEntry));
+    //KeyEntry *keys = malloc(SYSCFG_HASH_TABLE_SZ * 2048 * sizeof(KeyEntry));
+    KeyEntry *keys = malloc(102400* sizeof(KeyEntry));
     if (!keys) {
         ulog_LOG_Err("Memory allocation failed for keys array");
         rw_unlock(ctx);
