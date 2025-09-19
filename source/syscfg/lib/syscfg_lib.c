@@ -76,18 +76,23 @@ static int load_from_file (const char *fname);
 static int commit_to_file (const char *fname);
 
 #define DEFAULT_FILE "/etc/utopia/system_defaults"
-//#define ENTRY_ALLOC_CHUNK 64
+static unsigned int hash_default (const char *str)
+{
+    unsigned int hash = 5381 % 102400;
+    int c;
 
-#if 0
+    while ((c = *str++)) {
+        hash = ((hash << 5) + hash) + c; 
+    }
+
+    return hash % 102400;
+}
+
 typedef struct {
     char key[MAX_NAME_LEN];
     char value[MAX_NAME_LEN];
 } ConfigEntry;
 
-ConfigEntry *syscfg_default_entries = NULL;
-int syscfg_default_alloc = 0;
-int syscfg_default_count  = 0;
-#endif
 void find_corrupted_strings();
 
 static char *trim(char *in) {
@@ -106,19 +111,15 @@ static int parse_line(char *in, char **name, char **value) {
     return 0;
 }
 
-static unsigned int hash (const char *str);
-#if 0
 typedef struct ConfigNode {
     ConfigEntry entry;
     struct ConfigNode *next;
 } ConfigNode;
-#endif
-//#define DEFAULT_SYSCFG_HASH_TABLE_SZ
-//ConfigNode *default_ht[DEFAULT_SYSCFG_HASH_TABLE_SZ] = {0};
-//ConfigNode **default_ht = NULL;
-//ConfigNode *head_node = NULL;
-cJSON *root = NULL;
-#if 0
+
+ConfigNode **default_ht = NULL;
+ConfigNode *head_node = NULL;
+
+//cJSON *root = NULL;
 static int _syscfg_add_default_entry(const char *key, const char *value) {
     ConfigNode *new_node = malloc(sizeof(ConfigNode));
     if (!new_node) {
@@ -135,11 +136,8 @@ static int _syscfg_add_default_entry(const char *key, const char *value) {
         new_node->next = head_node;
     }
     head_node = new_node;
-    syscfg_default_count++;
     return 0;
 }
-#endif
-
 
 static int _syscfg_getall_defaults(void)
 {
@@ -157,8 +155,8 @@ static int _syscfg_getall_defaults(void)
             int offset = (line[1] == '$') ? 2 : 1;
             char *name, *value;
             if (parse_line(line + offset, &name, &value) == 0) {
-               // _syscfg_add_default_entry(trim(name), trim(value));
-                cJSON_AddStringToObject(root, trim(name), trim(value));
+                _syscfg_add_default_entry(trim(name), trim(value));
+                //cJSON_AddStringToObject(root, trim(name), trim(value));
             } else {
                 ulog_LOG_Err("[utopia] [error] set_syscfg_defaults failed to parse line (%s)\n", line);
             }
@@ -166,8 +164,8 @@ static int _syscfg_getall_defaults(void)
     }
 
     fclose(fp);
-#if 0 
-    default_ht = calloc(syscfg_default_count, sizeof(ConfigNode *));
+    
+    default_ht = calloc(102400, sizeof(ConfigNode *));
     if (!default_ht) {
         ulog_LOG_Err("Failed to allocate memory for default_ht");
         return ERR_MEM_ALLOC;
@@ -175,12 +173,12 @@ static int _syscfg_getall_defaults(void)
 
     ConfigNode *node = head_node;
     while (node) {
-        int index = hash(node->entry.key);
+        int index = hash_default(node->entry.key);
         default_ht[index] = node;
         node = node->next;
     }
-
-    for (int i =0; i < syscfg_default_count; i++)
+    
+    for (int i =0; i < 102400; i++)
     {
         ConfigNode *new_node = default_ht[i];
 
@@ -189,7 +187,6 @@ static int _syscfg_getall_defaults(void)
             printf ("Default [%s]\n", new_node->entry.key);
         }
     }
-#endif
     return 0;
 }
 /******************************************************************************
@@ -495,7 +492,6 @@ void syscfg_destroy (void)
         syscfg_initialized = 0;
     }
 }
-//int _syscfg_default_validation();
 static int _syscfg_getall_defaults(void);
 /*
  * Procedure     : syscfg_create
@@ -542,7 +538,6 @@ int syscfg_create (const char *file, long int max_file_sz)
     }
     /* Getting all system defaults & validate with current configurations */
     _syscfg_getall_defaults();
-    //_syscfg_default_validation();
     find_corrupted_strings();
 
     shmdt(syscfg_ctx);
@@ -1314,11 +1309,11 @@ static size_t _syscfg_getall2 (char *buf, size_t bufsz, int nolock)
 
     return (bufsz - len);   /* size does not include final nul terminator */
 }
-#if 0
+
 static int _syscfg_find (const char *name)
 {
-#if 0
-    unsigned int index = hash(name);
+#if 1
+    unsigned int index = hash_default(name);
     if (index)
     {
         ConfigNode *new_node = default_ht[index];
@@ -1328,17 +1323,17 @@ static int _syscfg_find (const char *name)
             return 1;
         }
     }
-#endif
+#else
     ConfigNode *node = head_node;
     while (node) {
         if (strcmp(node->entry.key, name) == 0)
             return 1;
         node = node->next;
     }
- 
+#endif
     return 0;
 }
-#endif
+
 typedef struct {
     const char *name;
     unsigned int len;
@@ -1350,15 +1345,6 @@ void find_corrupted_strings()
     unsigned int max_key_len = 0;
     syscfg_shm_ctx *ctx = syscfg_ctx;
     rw_lock(ctx);
-#if 0
-    //KeyEntry *keys = malloc(SYSCFG_HASH_TABLE_SZ * 2048 * sizeof(KeyEntry));
-    KeyEntry *keys = malloc(102400* sizeof(KeyEntry));
-    if (!keys) {
-        ulog_LOG_Err("Memory allocation failed for keys array");
-        rw_unlock(ctx);
-        return;
-    }
-#endif
     size_t num_elements = 102400;
     size_t array_size = num_elements * sizeof(KeyEntry);
     KeyEntry *keys = (KeyEntry *)mmap(NULL, array_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
@@ -1367,10 +1353,10 @@ void find_corrupted_strings()
         return;
     }
 
-    printf("Successfully allocated %zu bytes using mmap.\n", array_size);
-
-    for (int i = 0; i < SYSCFG_HASH_TABLE_SZ; i++) {
-        for (shmoff_t entry = ctx->ht[i]; entry; entry = HT_ENTRY_NEXT(ctx, entry)) {
+    for (int i = 0; i < SYSCFG_HASH_TABLE_SZ; i++)
+    {
+        for (shmoff_t entry = ctx->ht[i]; entry; entry = HT_ENTRY_NEXT(ctx, entry))
+        {
             const char *key = HT_ENTRY_NAME(ctx, entry);
             unsigned int len = strlen(key);
             keys[key_count].name = key;
@@ -1380,17 +1366,21 @@ void find_corrupted_strings()
         }
     }
 
-    for (int i = 0; i < key_count; i++) {
+    for (int i = 0; i < key_count; i++)
+    {
         const char *query = keys[i].name;
         unsigned int query_len = keys[i].len;
         unsigned int longest_len = 0;
         const char *longest_super = NULL;
 
-        for (int j = 0; j < key_count; j++) {
+        for (int j = 0; j < key_count; j++)
+        {
             if (i == j || keys[j].len < query_len) continue;
 
-            if (strstr(keys[j].name, query)) {
-                if (keys[j].len > longest_len) {
+            if (strstr(keys[j].name, query))
+            {
+                if (keys[j].len > longest_len)
+                {
                     longest_len = keys[j].len;
                     longest_super = keys[j].name;
                     if (longest_len == max_key_len) break;
@@ -1398,34 +1388,33 @@ void find_corrupted_strings()
             }
         }
 
-        if (longest_super) {
-            cJSON *item = cJSON_GetObjectItemCaseSensitive(root, query);
-            //if (!_syscfg_find(query))
-            if (item == NULL)
+        if (longest_super)
+        {
+            //cJSON *item = cJSON_GetObjectItemCaseSensitive(root, query);
+            //if (item == NULL)
+           if (!_syscfg_find(query)) 
                 printf("[utopia] - [%s] May be a corrupted key of [%s]\n", query, longest_super);
         }
     }
 
-    //free(keys);
-    if (munmap(keys, array_size) == -1) {
+    if (munmap(keys, array_size) == -1)
+    {
         perror("munmap failed");
     }
-    cJSON_Delete(root);
-#if 0
+
     ConfigNode *node = head_node;
     while (node) {
         ConfigNode *temp = node;
         node = node->next;
         free(temp);
     }
-#endif
-    //free(default_ht);
-    //default_ht = NULL;
-    //head_node = NULL;
+    free(default_ht);
+    default_ht = NULL;
+    head_node = NULL;
 
+    //cJSON_Delete(root);
     rw_unlock(ctx);
 }
-
 /******************************************************************************
  *          shared-memory create, initialize and attach/detach APIs
  *****************************************************************************/
@@ -1859,7 +1848,8 @@ static int load_from_file (const char *fname)
         inbuf[strcspn(inbuf, "\r\n")] = '\0';
         syscfg_parse(inbuf, &name, &value);
         if (name && value) {
-            syscfg_set(NULL, name, value);
+            if (name[0] != '\0')
+                syscfg_set(NULL, name, value);
             free(name);
             name = NULL;
             free(value);
