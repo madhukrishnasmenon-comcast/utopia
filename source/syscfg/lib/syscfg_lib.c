@@ -1398,7 +1398,7 @@ void find_corrupted_strings()
     }
 
     //free(keys);
-    if (munmap(large_array, array_size) == -1) {
+    if (munmap(keys, array_size) == -1) {
         perror("munmap failed");
     }
     ConfigNode *node = head_node;
