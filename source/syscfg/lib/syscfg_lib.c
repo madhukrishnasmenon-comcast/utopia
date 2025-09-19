@@ -59,7 +59,7 @@
 #include "syscfg.h"       // external interface used by users
 #include "safec_lib_common.h"
 #include <ctype.h>
-
+#include <cjson/cJSON.h>
 //#define VERBOSE_DEBUG
 
 /*
@@ -76,8 +76,9 @@ static int load_from_file (const char *fname);
 static int commit_to_file (const char *fname);
 
 #define DEFAULT_FILE "/etc/utopia/system_defaults"
-#define ENTRY_ALLOC_CHUNK 64
+//#define ENTRY_ALLOC_CHUNK 64
 
+#if 0
 typedef struct {
     char key[MAX_NAME_LEN];
     char value[MAX_NAME_LEN];
@@ -86,6 +87,7 @@ typedef struct {
 ConfigEntry *syscfg_default_entries = NULL;
 int syscfg_default_alloc = 0;
 int syscfg_default_count  = 0;
+#endif
 void find_corrupted_strings();
 
 static char *trim(char *in) {
@@ -105,16 +107,18 @@ static int parse_line(char *in, char **name, char **value) {
 }
 
 static unsigned int hash (const char *str);
-
+#if 0
 typedef struct ConfigNode {
     ConfigEntry entry;
     struct ConfigNode *next;
 } ConfigNode;
-
+#endif
 //#define DEFAULT_SYSCFG_HASH_TABLE_SZ
 //ConfigNode *default_ht[DEFAULT_SYSCFG_HASH_TABLE_SZ] = {0};
 //ConfigNode **default_ht = NULL;
-ConfigNode *head_node = NULL;
+//ConfigNode *head_node = NULL;
+cJSON *root = NULL;
+#if 0
 static int _syscfg_add_default_entry(const char *key, const char *value) {
     ConfigNode *new_node = malloc(sizeof(ConfigNode));
     if (!new_node) {
@@ -134,6 +138,7 @@ static int _syscfg_add_default_entry(const char *key, const char *value) {
     syscfg_default_count++;
     return 0;
 }
+#endif
 
 
 static int _syscfg_getall_defaults(void)
@@ -145,13 +150,15 @@ static int _syscfg_getall_defaults(void)
     }
 
     char buf[1024];
+    root = cJSON_CreateObject();
     while (fgets(buf, sizeof(buf), fp)) {
         char *line = trim(buf);
         if (line[0] == '$') {
             int offset = (line[1] == '$') ? 2 : 1;
             char *name, *value;
             if (parse_line(line + offset, &name, &value) == 0) {
-                _syscfg_add_default_entry(trim(name), trim(value));
+               // _syscfg_add_default_entry(trim(name), trim(value));
+                cJSON_AddStringToObject(root, trim(name), trim(value))
             } else {
                 ulog_LOG_Err("[utopia] [error] set_syscfg_defaults failed to parse line (%s)\n", line);
             }
@@ -1307,7 +1314,7 @@ static size_t _syscfg_getall2 (char *buf, size_t bufsz, int nolock)
 
     return (bufsz - len);   /* size does not include final nul terminator */
 }
-
+#if 0
 static int _syscfg_find (const char *name)
 {
 #if 0
@@ -1331,7 +1338,7 @@ static int _syscfg_find (const char *name)
  
     return 0;
 }
-
+#endif
 typedef struct {
     const char *name;
     unsigned int len;
@@ -1392,7 +1399,9 @@ void find_corrupted_strings()
         }
 
         if (longest_super) {
-            if (!_syscfg_find(query))
+            cJSON *item = cJSON_GetObjectItemCaseSensitive(json, query);
+            //if (!_syscfg_find(query))
+            if (item == NULL)
                 printf("[utopia] - [%s] May be a corrupted key of [%s]\n", query, longest_super);
         }
     }
@@ -1401,16 +1410,18 @@ void find_corrupted_strings()
     if (munmap(keys, array_size) == -1) {
         perror("munmap failed");
     }
+    cJSON_Delete(json);
+#if 0
     ConfigNode *node = head_node;
     while (node) {
         ConfigNode *temp = node;
         node = node->next;
         free(temp);
     }
-
+#endif
     //free(default_ht);
     //default_ht = NULL;
-    head_node = NULL;
+    //head_node = NULL;
 
     rw_unlock(ctx);
 }
