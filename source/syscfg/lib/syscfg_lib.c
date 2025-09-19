@@ -148,7 +148,7 @@ static int _syscfg_getall_defaults(void)
     }
 
     char buf[1024];
-    root = cJSON_CreateObject();
+    //root = cJSON_CreateObject();
     while (fgets(buf, sizeof(buf), fp)) {
         char *line = trim(buf);
         if (line[0] == '$') {
