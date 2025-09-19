@@ -1357,7 +1357,7 @@ void find_corrupted_strings()
     KeyEntry *keys = (KeyEntry *)mmap(NULL, array_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
     if (keys == MAP_FAILED) {
         perror("mmap failed");
-        return 1;
+        return;
     }
 
     printf("Successfully allocated %zu bytes using mmap.\n", array_size);
