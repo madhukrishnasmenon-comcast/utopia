@@ -1343,7 +1343,7 @@ void find_corrupted_strings()
     unsigned int max_key_len = 0;
     syscfg_shm_ctx *ctx = syscfg_ctx;
     rw_lock(ctx);
-
+#if 0
     //KeyEntry *keys = malloc(SYSCFG_HASH_TABLE_SZ * 2048 * sizeof(KeyEntry));
     KeyEntry *keys = malloc(102400* sizeof(KeyEntry));
     if (!keys) {
@@ -1351,7 +1351,16 @@ void find_corrupted_strings()
         rw_unlock(ctx);
         return;
     }
+#endif
+    size_t num_elements = 102400;
+    size_t array_size = num_elements * sizeof(KeyEntry);
+    KeyEntry *keys = (KeyEntry *)mmap(NULL, array_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    if (keys == MAP_FAILED) {
+        perror("mmap failed");
+        return 1;
+    }
 
+    printf("Successfully allocated %zu bytes using mmap.\n", array_size);
 
     for (int i = 0; i < SYSCFG_HASH_TABLE_SZ; i++) {
         for (shmoff_t entry = ctx->ht[i]; entry; entry = HT_ENTRY_NEXT(ctx, entry)) {
@@ -1934,6 +1943,8 @@ static int backup_file (const char *bkupFile, const char *localFile)
  */
 static int commit_to_file (const char *fname)
 {
+    if (access("/nvram/no_syscfg_write", F_OK) == 0)
+        return 0;
     int fd;
     int i, ct;
     char buf[2*MAX_ITEM_SZ];
